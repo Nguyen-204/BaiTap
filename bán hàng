@@ -1,11 +1,11 @@
-using BTL_Nhom7_CNPM.DatabaseConnect;
-using BTL_Nhom7_CNPM.Model;
+using BTL_Nhom18_CNPM.DatabaseConnect;
+using BTL_Nhom18_CNPM.Model;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
-namespace BTL_Nhom7_CNPM.DAO
+namespace BTL_Nhom18_CNPM.DAO
 {
     internal class BanHangDAO
     {
