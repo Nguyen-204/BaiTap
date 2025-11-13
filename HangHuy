@@ -1,0 +1,309 @@
+using BTL_Nhom18_CNPM.DatabaseConnect;
+using BTL_Nhom18_CNPM.Model;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System;
+
+namespace BTL_Nhom18_CNPM.DAO
+{
+    internal class HangHuyDAO
+    {
+
+        public static bool ThemHangHuy(HangHuy hangHuy)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                if (conn == null) throw new Exception("Không thể kết nối đến cơ sở dữ liệu.");
+
+                SqlTransaction transaction = conn.BeginTransaction();
+                try
+                {
+                    string queryInsert = "INSERT INTO HangHuy (MaHangHuy, MaSP, MaCTNK, SLHuy, NgayHuy, LyDoHuy) VALUES (@MaHangHuy, @MaSP, @MaCTNK, @SLHuy, @NgayHuy, @LyDoHuy)";
+                    using (SqlCommand cmdInsert = new SqlCommand(queryInsert, conn, transaction))
+                    {
+                        cmdInsert.Parameters.AddWithValue("@MaHangHuy", hangHuy.MaHangHuy);
+                        cmdInsert.Parameters.AddWithValue("@MaSP", hangHuy.MaSP);
+                        cmdInsert.Parameters.AddWithValue("@MaCTNK", hangHuy.MaCTNK);
+                        cmdInsert.Parameters.AddWithValue("@SLHuy", hangHuy.SLHuy);
+                        cmdInsert.Parameters.AddWithValue("@NgayHuy", hangHuy.NgayHuy);
+                        cmdInsert.Parameters.AddWithValue("@LyDoHuy", hangHuy.LyDoHuy);
+                        cmdInsert.ExecuteNonQuery();
+                    }
+
+                    string queryUpdate = "UPDATE TonKhoTheoLo SET SoLuongTon = SoLuongTon - @SLHuy WHERE MaCTNK = @MaCTNK";
+                    using (SqlCommand cmdUpdate = new SqlCommand(queryUpdate, conn, transaction))
+                    {
+                        cmdUpdate.Parameters.AddWithValue("@SLHuy", hangHuy.SLHuy);
+                        cmdUpdate.Parameters.AddWithValue("@MaCTNK", hangHuy.MaCTNK);
+                        cmdUpdate.ExecuteNonQuery();
+                    }
+
+                    transaction.Commit();
+                    return true;
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw; // Ném lại lỗi để form có thể hiển thị
+                }
+            }
+        }
+        public static bool SuaHangHuy(HangHuy hangHuy)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                if (conn == null) throw new Exception("Không thể kết nối đến cơ sở dữ liệu.");
+
+                SqlTransaction transaction = conn.BeginTransaction();
+                try
+                {
+                    // Bước 1: Lấy số lượng hủy cũ từ DB để tính chênh lệch
+                    int slHuyCu = 0;
+                    string selectQuery = "SELECT SLHuy FROM HangHuy WHERE MaHangHuy = @MaHangHuy";
+                    using (SqlCommand selectCmd = new SqlCommand(selectQuery, conn, transaction))
+                    {
+                        selectCmd.Parameters.AddWithValue("@MaHangHuy", hangHuy.MaHangHuy);
+                        var result = selectCmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            slHuyCu = (int)result;
+                        }
+                    }
+
+                    int chenhLech = hangHuy.SLHuy - slHuyCu;
+
+                    // Bước 2: Cập nhật bản ghi trong HangHuy
+                    string updateQuery = "UPDATE HangHuy SET SLHuy = @SLHuy, NgayHuy = @NgayHuy, LyDoHuy = @LyDoHuy WHERE MaHangHuy = @MaHangHuy";
+                    using (SqlCommand updateCmd = new SqlCommand(updateQuery, conn, transaction))
+                    {
+                        updateCmd.Parameters.AddWithValue("@SLHuy", hangHuy.SLHuy);
+                        updateCmd.Parameters.AddWithValue("@NgayHuy", hangHuy.NgayHuy);
+                        updateCmd.Parameters.AddWithValue("@LyDoHuy", hangHuy.LyDoHuy);
+                        updateCmd.Parameters.AddWithValue("@MaHangHuy", hangHuy.MaHangHuy);
+                        updateCmd.ExecuteNonQuery();
+                    }
+
+                    // Bước 3: Cập nhật tồn kho theo chênh lệch
+                    string queryUpdateTK = "UPDATE TonKhoTheoLo SET SoLuongTon = SoLuongTon - @ChenhLech WHERE MaCTNK = @MaCTNK";
+                    using (SqlCommand cmdUpdateTK = new SqlCommand(queryUpdateTK, conn, transaction))
+                    {
+                        cmdUpdateTK.Parameters.AddWithValue("@ChenhLech", chenhLech);
+                        cmdUpdateTK.Parameters.AddWithValue("@MaCTNK", hangHuy.MaCTNK);
+                        cmdUpdateTK.ExecuteNonQuery();
+                    }
+
+                    transaction.Commit();
+                    return true;
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public static bool XoaHangHuy(string maHangHuy)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                if (conn == null) throw new Exception("Không thể kết nối đến cơ sở dữ liệu.");
+
+                SqlTransaction transaction = conn.BeginTransaction();
+                try
+                {
+                    // Bước 1: Lấy thông tin cần thiết trước khi xóa
+                    int slHuy = 0;
+                    string maCTNK = "";
+                    string selectQuery = "SELECT SLHuy, MaCTNK FROM HangHuy WHERE MaHangHuy = @MaHangHuy";
+                    using (SqlCommand selectCmd = new SqlCommand(selectQuery, conn, transaction))
+                    {
+                        selectCmd.Parameters.AddWithValue("@MaHangHuy", maHangHuy);
+                        using (SqlDataReader reader = selectCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                slHuy = (int)reader["SLHuy"];
+                                maCTNK = reader["MaCTNK"].ToString();
+                            }
+                        } // reader sẽ tự đóng ở đây
+                    }
+
+                    if (string.IsNullOrEmpty(maCTNK)) return false; // Không tìm thấy bản ghi để xóa
+
+                    // Bước 2: Xóa bản ghi trong HangHuy
+                    string queryDelete = "DELETE FROM HangHuy WHERE MaHangHuy = @MaHangHuy";
+                    using (SqlCommand cmdDelete = new SqlCommand(queryDelete, conn, transaction))
+                    {
+                        cmdDelete.Parameters.AddWithValue("@MaHangHuy", maHangHuy);
+                        cmdDelete.ExecuteNonQuery();
+                    }
+
+                    // Bước 3: Cộng trả lại số lượng đã hủy vào kho
+                    string queryUpdate = "UPDATE TonKhoTheoLo SET SoLuongTon = SoLuongTon + @SoLuongHuy WHERE MaCTNK = @MaCTNK";
+                    using (SqlCommand cmdUpdate = new SqlCommand(queryUpdate, conn, transaction))
+                    {
+                        cmdUpdate.Parameters.AddWithValue("@SoLuongHuy", slHuy);
+                        cmdUpdate.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                        cmdUpdate.ExecuteNonQuery();
+                    }
+
+                    transaction.Commit();
+                    return true;
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // Lấy danh sách hàng hủy
+        public static List<HangHuy> LayDanhSachHangHuy()
+        {
+            List<HangHuy> danhSach = new List<HangHuy>();
+            try
+            {
+                using (SqlConnection connection = ConnectDatabase.GetConnection())
+                {
+                    if (connection == null) return danhSach;
+
+                    string query = "SELECT * FROM HangHuy";
+                    SqlCommand cmd = new SqlCommand(query, connection);
+                    SqlDataReader reader = cmd.ExecuteReader();
+
+                    while (reader.Read())
+                    {
+                        HangHuy hangHuy = new HangHuy()
+                        {
+                            MaHangHuy = reader["MaHangHuy"].ToString(),
+                            MaSP = reader["MaSP"].ToString(),
+                            MaCTNK = reader["MaCTNK"].ToString(),
+                            SLHuy = int.Parse(reader["SLHuy"].ToString()),
+                            NgayHuy = DateTime.Parse(reader["NgayHuy"].ToString()),
+                            LyDoHuy = reader["LyDoHuy"].ToString()
+                        };
+                        danhSach.Add(hangHuy);
+                    }
+                }
+            }
+            catch (SqlException ex)
+            {
+                // Log hoặc thông báo lỗi SQL
+                Console.WriteLine($"Lỗi SQL khi lấy danh sách hàng hủy: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                // Log hoặc thông báo lỗi chung
+                Console.WriteLine($"Lỗi khi lấy danh sách hàng hủy: {ex.Message}");
+            }
+            return danhSach;
+        }
+
+        // Cập nhật số lượng sản phẩm
+        public static bool CapNhatSoLuongSanPham(string maSP, int soLuongThayDoi)
+        {
+            try
+            {
+                using (SqlConnection connection = ConnectDatabase.GetConnection())
+                {
+                    if (connection == null) return false;
+
+                    string query = "UPDATE SanPham SET SoLuongTonKho = SoLuongTonKho + @SoLuongThayDoi WHERE MaSP = @MaSP";
+                    SqlCommand cmd = new SqlCommand(query, connection);
+                    cmd.Parameters.AddWithValue("@SoLuongThayDoi", soLuongThayDoi);
+                    cmd.Parameters.AddWithValue("@MaSP", maSP);
+
+                    return cmd.ExecuteNonQuery() > 0;
+                }
+            }
+            catch (SqlException ex)
+            {
+                // Log hoặc thông báo lỗi SQL
+                Console.WriteLine($"Lỗi SQL khi cập nhật số lượng sản phẩm: {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                // Log hoặc thông báo lỗi chung
+                Console.WriteLine($"Lỗi khi cập nhật số lượng sản phẩm: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Kiểm tra số lượng sản phẩm
+        public static bool KiemTraSoLuongSanPham(string maSP, int soLuongHuy)
+        {
+            try
+            {
+                using (SqlConnection connection = ConnectDatabase.GetConnection())
+                {
+                    if (connection == null) return false;
+
+                    string query = "SELECT SoLuongTonKho FROM SanPham WHERE MaSP = @MaSP";
+                    SqlCommand cmd = new SqlCommand(query, connection);
+                    cmd.Parameters.AddWithValue("@MaSP", maSP);
+
+                    SqlDataReader reader = cmd.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        int soLuongHienTai = int.Parse(reader["SoLuongTonKho"].ToString());
+                        return soLuongHienTai >= soLuongHuy; // Kiểm tra đủ số lượng để hủy không
+                    }
+                }
+            }
+            catch (SqlException ex)
+            {
+                // Log hoặc thông báo lỗi SQL
+                Console.WriteLine($"Lỗi SQL khi kiểm tra số lượng sản phẩm: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                // Log hoặc thông báo lỗi chung
+                Console.WriteLine($"Lỗi khi kiểm tra số lượng sản phẩm: {ex.Message}");
+            }
+            return false;
+        }
+        // Lấy mã hàng hủy mới tự động
+        public static string GenerateNewMaHangHuy()
+        {
+            try
+            {
+                using (SqlConnection connection = ConnectDatabase.GetConnection())
+                {
+                    if (connection == null) return "HH001";  // Trả về mã mặc định nếu không kết nối được
+
+                    // Truy vấn lấy mã hàng hủy lớn nhất hiện tại
+                    string query = "SELECT TOP 1 MaHangHuy FROM HangHuy ORDER BY MaHangHuy DESC";
+                    SqlCommand cmd = new SqlCommand(query, connection);
+                    SqlDataReader reader = cmd.ExecuteReader();
+
+                    if (reader.Read())
+                    {
+                        string lastMaHangHuy = reader["MaHangHuy"].ToString();
+                        reader.Close();
+
+                        // Lấy phần số sau "HH" và tăng lên
+                        int newNumber = int.Parse(lastMaHangHuy.Substring(2)) + 1;
+
+                        // Đảm bảo có 3 chữ số cho phần số
+                        return "HH" + newNumber.ToString("D3");
+                    }
+                    else
+                    {
+                        // Nếu không có mã hàng hủy nào, tạo mã đầu tiên "HH001"
+                        return "HH001";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi
+                Console.WriteLine($"Lỗi khi tạo mã hàng hủy: {ex.Message}");
+                return "HH001";  // Trả về mã mặc định nếu có lỗi
+            }
+        }
+
+    }
+}
