@@ -1,0 +1,124 @@
+using BTL_Nhom18_CNPM.DatabaseConnect;
+using BTL_Nhom18_CNPM.Model;
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+
+namespace BTL_Nhom18_CNPM.DAO
+{
+    public class KhachHangDAO
+    {
+        public static List<KhachHang> GetKhachHangList()
+        {
+            var list = new List<KhachHang>();
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                string query = "SELECT * FROM KhachHang";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                SqlDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    list.Add(new KhachHang
+                    {
+                        MaKH = reader["MaKH"].ToString(),
+                        HoTenKH = reader["HoTenKH"].ToString(),
+                        SoDienThoaiKH = reader["SoDienThoaiKH"].ToString(),
+                        DiaChi = reader["DiaChi"].ToString()
+                    });
+                }
+            }
+            return list;
+        }
+
+        public static void AddKhachHang(KhachHang kh)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                // Sửa @HoTen thành @HoTenKH
+                string query = "INSERT INTO KhachHang (MaKH, HoTenKH, SoDienThoaiKH, DiaChi) VALUES (@MaKH, @HoTenKH, @SoDienThoaiKH, @DiaChi)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaKH", kh.MaKH);
+                cmd.Parameters.AddWithValue("@HoTenKH", kh.HoTenKH); // SỬA Ở ĐÂY
+                cmd.Parameters.AddWithValue("@SoDienThoaiKH", kh.SoDienThoaiKH);
+                cmd.Parameters.AddWithValue("@DiaChi", kh.DiaChi);
+                cmd.ExecuteNonQuery();
+            }
+        }
+        public static void UpdateKhachHang(KhachHang kh)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                // Sửa @HoTen thành @HoTenKH
+                string query = "UPDATE KhachHang SET HoTenKH = @HoTenKH, SoDienThoaiKH = @SoDienThoaiKH, DiaChi = @DiaChi WHERE MaKH = @MaKH";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaKH", kh.MaKH);
+                cmd.Parameters.AddWithValue("@HoTenKH", kh.HoTenKH); // SỬA Ở ĐÂY
+                cmd.Parameters.AddWithValue("@SoDienThoaiKH", kh.SoDienThoaiKH);
+                cmd.Parameters.AddWithValue("@DiaChi", kh.DiaChi);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public static void DeleteKhachHang(string maKH)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                // Cần kiểm tra ràng buộc khóa ngoại trước khi xóa nếu có
+                string query = "DELETE FROM KhachHang WHERE MaKH = @MaKH";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaKH", maKH);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public static bool IsMaKHExists(string maKH)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                string query = "SELECT COUNT(*) FROM KhachHang WHERE MaKH = @MaKH";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaKH", maKH);
+                return (int)cmd.ExecuteScalar() > 0;
+            }
+        }
+        public static KhachHang GetKhachHangBySdt(string sdt)
+        {
+            KhachHang kh = null;
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                string query = "SELECT * FROM KhachHang WHERE SoDienThoaiKH = @sdt";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@sdt", sdt);
+                SqlDataReader reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    kh = new KhachHang
+                    {
+                        MaKH = reader["MaKH"].ToString(),
+                        HoTenKH = reader["HoTenKH"].ToString(),
+                        SoDienThoaiKH = reader["SoDienThoaiKH"].ToString(),
+                        DiaChi = reader["DiaChi"].ToString()
+                    };
+                }
+            }
+            return kh;
+        }
+        public static string GenerateMaKH()
+        {
+            string newId = "KH001";
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                string query = "SELECT TOP 1 MaKH FROM KhachHang ORDER BY MaKH DESC";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                var result = cmd.ExecuteScalar();
+                if (result != null)
+                {
+                    string lastId = result.ToString();
+                    int newNumber = int.Parse(lastId.Substring(2)) + 1;
+                    newId = "KH" + newNumber.ToString("D3");
+                }
+            }
+            return newId;
+        }
+    }
+}
