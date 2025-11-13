@@ -1,0 +1,240 @@
+using BTL_Nhom18_CNPM.DatabaseConnect;
+using BTL_Nhom18_CNPM.Model;
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Diagnostics;
+using System.Text;
+using System.Threading;
+
+namespace BTL_Nhom18_CNPM.DAO
+{
+    internal class NhaCungCapDAO
+    {
+        private static void Log(string message)
+        {
+            //Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [TID:{Thread.CurrentThread.ManagedThreadId}] {message}");
+        }
+
+        // Kiểm tra mã NCC có tồn tại không
+        public static bool IsMaNCCExists(string maNCC)
+        {
+            Log($"IsMaNCCExists START MaNCC={maNCC}");
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    string query = "SELECT COUNT(*) FROM NhaCungCap WHERE MaNCC = @MaNCC";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaNCC", maNCC);
+                        int count = (int)cmd.ExecuteScalar();
+                        Log($"IsMaNCCExists END MaNCC={maNCC} Count={count}");
+                        return count > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"IsMaNCCExists ERROR MaNCC={maNCC} Ex={ex}");
+                // Không show MessageBox ở DAO - nhưng giữ nguyên nếu muốn
+                throw;
+            }
+        }
+
+        // Thêm NCC
+        public static void SaveNCC(NhaCungCap ncc)
+        {
+            Log($"SaveNCC START MaNCC={ncc?.MaNCC}");
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    string query = "INSERT INTO NhaCungCap (MaNCC, TenNCC, SDTNCC, EmailNCC) VALUES (@MaNCC, @TenNCC, @SDTNCC, @EmailNCC)";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaNCC", ncc.MaNCC ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@TenNCC", ncc.TenNCC ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@SDTNCC", ncc.SDTNCC ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@EmailNCC", ncc.EmailNCC ?? (object)DBNull.Value);
+                        int rows = cmd.ExecuteNonQuery();
+                        Log($"SaveNCC END MaNCC={ncc.MaNCC} RowsAffected={rows}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"SaveNCC ERROR MaNCC={ncc?.MaNCC} Ex={ex}");
+                throw;
+            }
+        }
+
+        // Sửa NCC
+        public static void UpdateNCC(NhaCungCap ncc)
+        {
+            Log($"UpdateNCC START MaNCC={ncc?.MaNCC}");
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    string query = "UPDATE NhaCungCap SET TenNCC = @TenNCC, SDTNCC = @SDTNCC, EmailNCC = @EmailNCC WHERE MaNCC = @MaNCC";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaNCC", ncc.MaNCC ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@TenNCC", ncc.TenNCC ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@SDTNCC", ncc.SDTNCC ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@EmailNCC", ncc.EmailNCC ?? (object)DBNull.Value);
+                        int rows = cmd.ExecuteNonQuery();
+                        Log($"UpdateNCC END MaNCC={ncc.MaNCC} RowsAffected={rows}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"UpdateNCC ERROR MaNCC={ncc?.MaNCC} Ex={ex}");
+                throw;
+            }
+        }
+
+        // Xóa NCC
+        public static void DeleteNCC(string maNCC)
+        {
+            Log($"DeleteNCC START MaNCC={maNCC}");
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    // Kiểm tra xem có chi tiết nhập kho nào liên quan đến mã NCC không
+                    string checkNhapKhoQuery = "SELECT COUNT(*) FROM NhapKho WHERE MaNCC = @MaNCC";
+                    using (SqlCommand checkCmd = new SqlCommand(checkNhapKhoQuery, conn))
+                    {
+                        checkCmd.Parameters.AddWithValue("@MaNCC", maNCC);
+                        int nhapKhoCount = (int)checkCmd.ExecuteScalar();
+                        Log($"DeleteNCC: NhapKhoCount={nhapKhoCount} for MaNCC={maNCC}");
+                        if (nhapKhoCount > 0)
+                        {
+                            // Lấy danh sách các mã nhập kho liên quan
+                            string getNhapKhoQuery = "SELECT MaCTNK FROM NhapKho WHERE MaNCC = @MaNCC";
+                            using (SqlCommand getCmd = new SqlCommand(getNhapKhoQuery, conn))
+                            {
+                                getCmd.Parameters.AddWithValue("@MaNCC", maNCC);
+                                using (SqlDataReader reader = getCmd.ExecuteReader())
+                                {
+                                    StringBuilder nhapKhoListSb = new StringBuilder();
+                                    while (reader.Read())
+                                    {
+                                        nhapKhoListSb.Append(reader["MaCTNK"].ToString());
+                                        nhapKhoListSb.Append(", ");
+                                    }
+                                    string nhapKhoList = nhapKhoListSb.ToString().TrimEnd(',', ' ');
+                                    Log($"DeleteNCC ABORT: related NhapKho list: {nhapKhoList}");
+                                    throw new InvalidOperationException($"Không thể xóa Nhà Cung Cấp vì có bản ghi nhập kho liên quan: {nhapKhoList}");
+                                }
+                            }
+                        }
+                    }
+
+                    // Nếu không có bản ghi liên quan, thực hiện xóa NCC
+                    string query = "DELETE FROM NhaCungCap WHERE MaNCC = @MaNCC";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaNCC", maNCC);
+                        int rowsAffected = cmd.ExecuteNonQuery();
+                        Log($"DeleteNCC END MaNCC={maNCC} RowsAffected={rowsAffected}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"DeleteNCC ERROR MaNCC={maNCC} Ex={ex}");
+                throw;
+            }
+        }
+
+        // Lấy danh sách NCC
+        public static List<NhaCungCap> GetNCCList()
+        {
+            Log("GetNCCList START");
+            List<NhaCungCap> listNCC = new List<NhaCungCap>();
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    string query = "SELECT * FROM NhaCungCap";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                NhaCungCap ncc = new NhaCungCap
+                                {
+                                    MaNCC = reader["MaNCC"]?.ToString(),
+                                    TenNCC = reader["TenNCC"]?.ToString(),
+                                    SDTNCC = reader["SDTNCC"]?.ToString(),
+                                    EmailNCC = reader["EmailNCC"]?.ToString()
+                                };
+                                listNCC.Add(ncc);
+                            }
+                        }
+                    }
+                }
+                Log($"GetNCCList END Count={listNCC.Count}");
+            }
+            catch (Exception ex)
+            {
+                Log($"GetNCCList ERROR Ex={ex}");
+                throw;
+            }
+            return listNCC;
+        }
+
+        public static string GetNewMaNCC()
+        {
+            Log("GetNewMaNCC START");
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    string query = "SELECT TOP 1 MaNCC FROM NhaCungCap ORDER BY MaNCC DESC";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        var result = cmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            string maNCC = result.ToString();
+                            // tìm phần chữ số cuối cùng (an toàn hơn)
+                            int numberPart = 0;
+                            for (int i = maNCC.Length - 1; i >= 0; i--)
+                            {
+                                if (!char.IsDigit(maNCC[i])) break;
+                            }
+                            // Cách đơn giản: lấy substring từ 3 trở đi nếu format cố định "NCC###"
+                            if (maNCC.Length > 3 && int.TryParse(maNCC.Substring(3), out numberPart))
+                            {
+                                string newMa = "NCC" + (numberPart + 1).ToString("D3");
+                                Log($"GetNewMaNCC END NewMaNCC={newMa}");
+                                return newMa;
+                            }
+                            else
+                            {
+                                Log($"GetNewMaNCC WARNING unexpected format '{maNCC}', return default NCC001");
+                                return "NCC001";
+                            }
+                        }
+                        else
+                        {
+                            Log("GetNewMaNCC END no existing, return NCC001");
+                            return "NCC001";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"GetNewMaNCC ERROR Ex={ex}");
+                throw;
+            }
+        }
+    }
+}
