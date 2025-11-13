@@ -1,0 +1,64 @@
+
+using BTL_Nhom7_CNPM.DatabaseConnect;
+using BTL_Nhom7_CNPM.Model;
+using System;
+using System.Data.SqlClient;
+
+namespace BTL_Nhom7_CNPM.DAO
+{
+    public class DonThuocDAO
+    {
+        public static void AddDonThuoc(DonThuoc dt)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                // Thêm HoTenBenhNhan vào câu lệnh SQL
+                string query = @"INSERT INTO DonThuoc 
+                       (MaDonThuoc, MaKH, HoTenBenhNhan, ChanDoan, HoTenBacSi, NoiKhamBenh, NgayKeDon, DuongDanAnhDonThuoc) 
+                       VALUES 
+                       (@MaDonThuoc, @MaKH, @HoTenBenhNhan, @ChanDoan, @HoTenBacSi, @NoiKhamBenh, @NgayKeDon, @DuongDanAnhDonThuoc)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaDonThuoc", dt.MaDonThuoc);
+                cmd.Parameters.AddWithValue("@MaKH", dt.MaKH);
+                cmd.Parameters.AddWithValue("@HoTenBenhNhan", dt.HoTenBenhNhan); // THÊM DÒNG NÀY
+                cmd.Parameters.AddWithValue("@ChanDoan", dt.ChanDoan);
+                cmd.Parameters.AddWithValue("@HoTenBacSi", dt.HoTenBacSi);
+                cmd.Parameters.AddWithValue("@NoiKhamBenh", dt.NoiKhamBenh);
+                cmd.Parameters.AddWithValue("@NgayKeDon", dt.NgayKeDon);
+                cmd.Parameters.AddWithValue("@DuongDanAnhDonThuoc", (object)dt.DuongDanAnhDonThuoc ?? DBNull.Value);
+                cmd.ExecuteNonQuery();
+            }
+        }
+        public static DonThuoc GetDonThuocByMa(string maDonThuoc)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                string query = "SELECT * FROM DonThuoc WHERE MaDonThuoc = @MaDonThuoc";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaDonThuoc", maDonThuoc);
+                SqlDataReader reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    return new DonThuoc
+                    {
+                        MaDonThuoc = reader["MaDonThuoc"].ToString(),
+                        MaKH = reader["MaKH"].ToString(),
+                        ChanDoan = reader["ChanDoan"].ToString(),
+                        HoTenBacSi = reader["HoTenBacSi"].ToString(),
+                        NoiKhamBenh = reader["NoiKhamBenh"].ToString(),
+                        NgayKeDon = Convert.ToDateTime(reader["NgayKeDon"]),
+                        DuongDanAnhDonThuoc = reader["DuongDanAnhDonThuoc"]?.ToString(),
+                        // Nếu có cột IsVerified thì thêm:
+                        //IsVerified = reader["IsVerified"] != DBNull.Value && Convert.ToBoolean(reader["IsVerified"])
+                    };
+                }
+            }
+            return null;
+        }
+
+        public static string GenerateMaDonThuoc()
+        {
+            return "DT" + DateTime.Now.ToString("yyyyMMddHHmmss");
+        }
+    }
+}
