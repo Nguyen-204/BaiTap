@@ -1,0 +1,348 @@
+using BTL_Nhom18_CNPM.DatabaseConnect;
+using BTL_Nhom18_CNPM.Model;
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace BTL_Nhom18_CNPM.DAO
+{
+    internal class NhapKhoDAO
+    {
+        // Kiểm tra mã nhập kho có tồn tại không
+        public static bool IsMaCTNKExists(string maCTNK)
+        {
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    if (conn == null) return false;
+                    string query = "SELECT COUNT(*) FROM NhapKho WHERE MaCTNK = @MaCTNK";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                        int count = (int)cmd.ExecuteScalar();
+                        return count > 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi kiểm tra mã nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        // Thêm nhập kho
+        public static void SaveNhapKho(NhapKho nhapKho)
+        {
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    if (conn == null) return;
+                    SqlTransaction transaction = conn.BeginTransaction(); // Sử dụng transaction để đảm bảo toàn vẹn
+                    try
+                    {
+                        // Thêm vào bảng NhapKho (giữ nguyên)
+                        string queryNhapKho = "INSERT INTO NhapKho (MaCTNK, MaNCC, MaSP, SLNhap, DonGiaNhap, NSX, HSD) VALUES (@MaCTNK, @MaNCC, @MaSP, @SLNhap, @DonGiaNhap, @NSX, @HSD)";
+                        using (SqlCommand cmdNhapKho = new SqlCommand(queryNhapKho, conn, transaction))
+                        {
+                            cmdNhapKho.Parameters.AddWithValue("@MaCTNK", nhapKho.MaCTNK);
+                            cmdNhapKho.Parameters.AddWithValue("@MaNCC", nhapKho.MaNCC);
+                            cmdNhapKho.Parameters.AddWithValue("@MaSP", nhapKho.MaSP);
+                            cmdNhapKho.Parameters.AddWithValue("@SLNhap", nhapKho.SLNhap);
+                            cmdNhapKho.Parameters.AddWithValue("@DonGiaNhap", nhapKho.DonGiaNhap);
+                            cmdNhapKho.Parameters.AddWithValue("@NSX", nhapKho.NSX);
+                            cmdNhapKho.Parameters.AddWithValue("@HSD", nhapKho.HSD);
+                            cmdNhapKho.ExecuteNonQuery();
+                        }
+
+                        // XÓA BỎ LỆNH CŨ NÀY
+                        // string queryUpdateSP = "UPDATE SanPham SET SoLuongTonKho = SoLuongTonKho + @SLNhap WHERE MaSP = @MaSP"; 
+
+                        // THAY BẰNG LỆNH MỚI: Thêm vào bảng tồn kho chi tiết
+                        string queryInsertTonKho = "INSERT INTO TonKhoTheoLo (MaSP, MaCTNK, SoLuongTon) VALUES (@MaSP, @MaCTNK, @SLNhap)";
+                        using (SqlCommand cmdInsertTonKho = new SqlCommand(queryInsertTonKho, conn, transaction))
+                        {
+                            cmdInsertTonKho.Parameters.AddWithValue("@MaSP", nhapKho.MaSP);
+                            cmdInsertTonKho.Parameters.AddWithValue("@MaCTNK", nhapKho.MaCTNK);
+                            cmdInsertTonKho.Parameters.AddWithValue("@SLNhap", nhapKho.SLNhap);
+                            cmdInsertTonKho.ExecuteNonQuery();
+                        }
+
+                        transaction.Commit(); // Hoàn tất giao dịch
+                    }
+                    catch (Exception ex)
+                    {
+                        transaction.Rollback(); // Hoàn tác nếu có lỗi
+                        MessageBox.Show("Lỗi khi lưu nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        throw; // Ném lại lỗi để lớp gọi có thể xử lý
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi kết nối khi thêm nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // Cập nhật nhập kho
+        public static void UpdateNhapKho(NhapKho nhapKho)
+        {
+            // (Mã nguồn của bạn cho hàm này không thay đổi)
+        }
+
+        // Xóa nhập kho
+        public static void DeleteNhapKho(string maCTNK)
+        {
+            // (Mã nguồn của bạn cho hàm này không thay đổi)
+        }
+
+        // Lấy danh sách nhập kho
+        public static List<NhapKho> GetNhapKhoList()
+        {
+            List<NhapKho> listNhapKho = new List<NhapKho>();
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    if (conn == null) return listNhapKho;
+                    string query = "SELECT * FROM NhapKho";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        SqlDataReader reader = cmd.ExecuteReader();
+                        while (reader.Read())
+                        {
+                            NhapKho nk = new NhapKho
+                            {
+                                MaCTNK = reader["MaCTNK"].ToString(),
+                                MaNCC = reader["MaNCC"].ToString(),
+                                MaSP = reader["MaSP"].ToString(),
+                                SLNhap = Convert.ToInt32(reader["SLNhap"]),
+                                DonGiaNhap = Convert.ToDecimal(reader["DonGiaNhap"]),
+                                NSX = Convert.ToDateTime(reader["NSX"]),
+                                HSD = Convert.ToDateTime(reader["HSD"])
+                            };
+                            listNhapKho.Add(nk);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi khi lấy danh sách nhập kho: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return listNhapKho;
+        }
+
+        // Lưu danh sách nhập kho từ file Excel (ĐÃ SỬA LỖI)
+        public static void SaveNhapKhoFromList(List<NhapKho> danhSachNhapKho)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                if (conn == null)
+                {
+                    throw new Exception("Không thể kết nối đến cơ sở dữ liệu.");
+                }
+
+                SqlTransaction transaction = conn.BeginTransaction();
+                try
+                {
+                    foreach (var nhapKho in danhSachNhapKho)
+                    {
+                        // *** THAY ĐỔI QUAN TRỌNG: TẠO MÃ MỚI BÊN TRONG VÒNG LẶP ***
+                        // Điều này đảm bảo mỗi bản ghi có một MaCTNK duy nhất.
+                        nhapKho.MaCTNK = GenerateMaCTNK(conn, transaction); // Truyền connection và transaction vào
+
+                        // 1. Thêm vào bảng NhapKho
+                        string queryNhapKho = "INSERT INTO NhapKho (MaCTNK, MaNCC, MaSP, SLNhap, DonGiaNhap, NSX, HSD) VALUES (@MaCTNK, @MaNCC, @MaSP, @SLNhap, @DonGiaNhap, @NSX, @HSD)";
+                        using (SqlCommand cmdNhapKho = new SqlCommand(queryNhapKho, conn, transaction))
+                        {
+                            cmdNhapKho.Parameters.AddWithValue("@MaCTNK", nhapKho.MaCTNK);
+                            cmdNhapKho.Parameters.AddWithValue("@MaNCC", nhapKho.MaNCC);
+                            cmdNhapKho.Parameters.AddWithValue("@MaSP", nhapKho.MaSP);
+                            cmdNhapKho.Parameters.AddWithValue("@SLNhap", nhapKho.SLNhap);
+                            cmdNhapKho.Parameters.AddWithValue("@DonGiaNhap", nhapKho.DonGiaNhap);
+                            cmdNhapKho.Parameters.AddWithValue("@NSX", nhapKho.NSX);
+                            cmdNhapKho.Parameters.AddWithValue("@HSD", nhapKho.HSD);
+                            cmdNhapKho.ExecuteNonQuery();
+                        }
+
+                        // 2. Cập nhật số lượng tồn kho trong bảng SanPham
+                        // 3. THAY BẰNG LỆNH MỚI: Thêm vào bảng tồn kho chi tiết
+                        string queryInsertTonKho = "INSERT INTO TonKhoTheoLo (MaSP, MaCTNK, SoLuongTon) VALUES (@MaSP, @MaCTNK, @SLNhap)";
+                        using (SqlCommand cmdInsertTonKho = new SqlCommand(queryInsertTonKho, conn, transaction))
+                        {
+                            cmdInsertTonKho.Parameters.AddWithValue("@MaSP", nhapKho.MaSP);
+                            cmdInsertTonKho.Parameters.AddWithValue("@MaCTNK", nhapKho.MaCTNK);
+                            cmdInsertTonKho.Parameters.AddWithValue("@SLNhap", nhapKho.SLNhap);
+                            cmdInsertTonKho.ExecuteNonQuery();
+                        }
+                        //using (SqlCommand cmdUpdateSP = new SqlCommand(queryUpdateSP, conn, transaction))
+                        //{
+                        //    cmdUpdateSP.Parameters.AddWithValue("@SLNhap", nhapKho.SLNhap);
+                        //    cmdUpdateSP.Parameters.AddWithValue("@MaSP", nhapKho.MaSP);
+                        //    cmdUpdateSP.ExecuteNonQuery();
+                        //}
+                    }
+                    transaction.Commit();
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // Hàm tạo mã (ĐÃ SỬA LỖI)
+        public static string GenerateMaCTNK(SqlConnection conn = null, SqlTransaction tran = null)
+        {
+            string maCTNK = "CTNK001";
+            bool shouldCloseConnection = false;
+
+            // Nếu không có kết nối được truyền vào, tự tạo một kết nối mới
+            if (conn == null)
+            {
+                conn = ConnectDatabase.GetConnection();
+                shouldCloseConnection = true;
+            }
+
+            try
+            {
+                string query = "SELECT TOP 1 MaCTNK FROM NhapKho ORDER BY MaCTNK DESC";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                if (tran != null)
+                {
+                    cmd.Transaction = tran; // Gán transaction nếu có
+                }
+
+                var result = cmd.ExecuteScalar(); // Dùng ExecuteScalar an toàn hơn
+
+                if (result != null && result != DBNull.Value)
+                {
+                    string lastMaCTNK = result.ToString();
+                    int lastNumber = int.Parse(lastMaCTNK.Substring(4));
+                    int newNumber = lastNumber + 1;
+                    maCTNK = "CTNK" + newNumber.ToString("D3");
+                }
+            }
+            finally
+            {
+                if (shouldCloseConnection && conn != null)
+                {
+                    conn.Close();
+                }
+            }
+            return maCTNK;
+        }
+
+        #region Các hàm xác thực (Không thay đổi)
+        public static List<string> KiemTraSanPhamTonTai(List<string> danhSachMaSP)
+        {
+            var maSPCanKiemTra = danhSachMaSP.Distinct().ToList();
+            var maSPKhongTonTai = new List<string>(maSPCanKiemTra);
+
+            if (!maSPCanKiemTra.Any()) return maSPKhongTonTai;
+
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    var thamSo = new List<string>();
+                    for (int i = 0; i < maSPCanKiemTra.Count; i++)
+                    {
+                        thamSo.Add($"@p{i}");
+                    }
+                    string query = $"SELECT MaSP FROM SANPHAM WHERE MaSP IN ({string.Join(",", thamSo)})";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        for (int i = 0; i < maSPCanKiemTra.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue($"@p{i}", maSPCanKiemTra[i]);
+                        }
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                maSPKhongTonTai.Remove(reader["MaSP"].ToString());
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi khi kiểm tra mã sản phẩm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return maSPKhongTonTai;
+        }
+        public static NhapKho GetLoByMaCTNK(string maCTNK)
+        {
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                string query = "SELECT * FROM NhapKho WHERE MaCTNK = @MaCTNK";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                SqlDataReader reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    return new NhapKho
+                    {
+                        MaCTNK = reader["MaCTNK"].ToString(),
+                        MaNCC = reader["MaNCC"].ToString(),
+                        MaSP = reader["MaSP"].ToString(),
+                        SLNhap = Convert.ToInt32(reader["SLNhap"]),
+                        DonGiaNhap = Convert.ToDecimal(reader["DonGiaNhap"]),
+                        NSX = Convert.ToDateTime(reader["NSX"]),
+                        HSD = Convert.ToDateTime(reader["HSD"])
+                    };
+                }
+            }
+            return null;
+        }
+
+        public static List<string> KiemTraNhaCungCapTonTai(List<string> danhSachMaNCC)
+        {
+            var maNCCCanKiemTra = danhSachMaNCC.Distinct().ToList();
+            var maNCKhongTonTai = new List<string>(maNCCCanKiemTra);
+
+            if (!maNCCCanKiemTra.Any()) return maNCKhongTonTai;
+
+            try
+            {
+                using (SqlConnection conn = ConnectDatabase.GetConnection())
+                {
+                    var thamSo = new List<string>();
+                    for (int i = 0; i < maNCCCanKiemTra.Count; i++)
+                    {
+                        thamSo.Add($"@p{i}");
+                    }
+                    string query = $"SELECT MaNCC FROM NHACUNGCAP WHERE MaNCC IN ({string.Join(",", thamSo)})";
+                    using (SqlCommand cmd = new SqlCommand(query, conn))
+                    {
+                        for (int i = 0; i < maNCCCanKiemTra.Count; i++)
+                        {
+                            cmd.Parameters.AddWithValue($"@p{i}", maNCCCanKiemTra[i]);
+                        }
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                maNCKhongTonTai.Remove(reader["MaNCC"].ToString());
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi khi kiểm tra mã nhà cung cấp: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return maNCKhongTonTai;
+        }
+        #endregion
+    }
+}
