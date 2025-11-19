@@ -1,0 +1,121 @@
+using BTL_Nhom7_CNPM.DatabaseConnect;
+using BTL_Nhom7_CNPM.Model;
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Windows.Forms;
+
+namespace BTL_Nhom7_CNPM.DAO
+{
+    public class TruyXuatDAO
+    {
+        public static BaoCaoTruyXuatLo GetBaoCao(string maCTNK)
+        {
+            var baoCao = new BaoCaoTruyXuatLo();
+
+            using (SqlConnection conn = ConnectDatabase.GetConnection())
+            {
+                try
+                {
+                    // === 1. Lấy thông tin chung của lô ===
+                    string queryInfo = @"
+                        SELECT nk.*, sp.TenSP, ncc.TenNCC 
+                        FROM NhapKho nk
+                        JOIN SanPham sp ON nk.MaSP = sp.MaSP
+                        JOIN NhaCungCap ncc ON nk.MaNCC = ncc.MaNCC
+                        WHERE nk.MaCTNK = @MaCTNK";
+
+                    using (SqlCommand cmd = new SqlCommand(queryInfo, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                baoCao.ThongTinLo = new NhapKho
+                                {
+                                    MaCTNK = reader["MaCTNK"].ToString(),
+                                    MaNCC = reader["MaNCC"].ToString(),
+                                    MaSP = reader["MaSP"].ToString(),
+                                    SLNhap = Convert.ToInt32(reader["SLNhap"]),
+                                    DonGiaNhap = Convert.ToDecimal(reader["DonGiaNhap"]),
+                                    NSX = Convert.ToDateTime(reader["NSX"]),
+                                    HSD = Convert.ToDateTime(reader["HSD"])
+                                };
+                                baoCao.TenSP = reader["TenSP"].ToString();
+                                baoCao.TenNCC = reader["TenNCC"].ToString();
+                            }
+                            else
+                            {
+                                return null; // Không tìm thấy lô hàng, trả về null
+                            }
+                        }
+                    }
+
+                    // === 2. Lấy lịch sử bán hàng ===
+                    string querySales = @"
+                        SELECT hd.NgayBan, cthd.SLBan, cthd.MaHD 
+                        FROM ChiTietHoaDon cthd
+                        JOIN HoaDon hd ON cthd.MaHD = hd.MaHD
+                        WHERE cthd.MaCTNK = @MaCTNK";
+
+                    using (SqlCommand cmd = new SqlCommand(querySales, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                baoCao.LichSuBanHang.Add(new ChiTietXuatBan
+                                {
+                                    NgayBan = Convert.ToDateTime(reader["NgayBan"]),
+                                    SLBan = Convert.ToInt32(reader["SLBan"]),
+                                    MaHD = reader["MaHD"].ToString()
+                                });
+                            }
+                        }
+                    }
+
+                    // === 3. Lấy lịch sử hủy hàng ===
+                    string queryDestroy = "SELECT * FROM HangHuy WHERE MaCTNK = @MaCTNK";
+                    using (SqlCommand cmd = new SqlCommand(queryDestroy, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                baoCao.LichSuHuyHang.Add(new HangHuy
+                                {
+                                    MaHangHuy = reader["MaHangHuy"].ToString(),
+                                    NgayHuy = Convert.ToDateTime(reader["NgayHuy"]),
+                                    SLHuy = Convert.ToInt32(reader["SLHuy"]),
+                                    LyDoHuy = reader["LyDoHuy"].ToString()
+                                });
+                            }
+                        }
+                    }
+
+                    // === 4. Lấy tồn kho hiện tại ===
+                    string queryStock = "SELECT SoLuongTon FROM TonKhoTheoLo WHERE MaCTNK = @MaCTNK";
+                    using (SqlCommand cmd = new SqlCommand(queryStock, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MaCTNK", maCTNK);
+                        var result = cmd.ExecuteScalar();
+                        if (result != null && result != DBNull.Value)
+                        {
+                            baoCao.TonKhoHienTai = Convert.ToInt32(result);
+                        }
+                    }
+
+                    return baoCao;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Lỗi khi truy xuất dữ liệu lô hàng: " + ex.Message, "Lỗi DAO");
+                    return null;
+                }
+            }
+        }
+    }
+}
