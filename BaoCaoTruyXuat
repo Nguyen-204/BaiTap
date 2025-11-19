@@ -1,0 +1,31 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+
+
+namespace BTL_Nhom7_CNPM.Model
+{
+    public class BaoCaoTruyXuatLo
+    {
+        // Thông tin chung
+        public NhapKho ThongTinLo { get; set; }
+        public string TenSP { get; set; }
+        public string TenNCC { get; set; }
+
+        // Danh sách chi tiết
+        public List<ChiTietXuatBan> LichSuBanHang { get; set; }
+        public List<HangHuy> LichSuHuyHang { get; set; }
+
+        // Tóm tắt
+        public int TonKhoHienTai { get; set; }
+
+        public BaoCaoTruyXuatLo()
+        {
+            LichSuBanHang = new List<ChiTietXuatBan>();
+            LichSuHuyHang = new List<HangHuy>();
+        }
+    }
+}
