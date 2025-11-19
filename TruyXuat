@@ -1,5 +1,5 @@
-using BTL_Nhom7_CNPM.DatabaseConnect;
-using BTL_Nhom7_CNPM.Model;
+using BTL_Nhom18_CNPM.DatabaseConnect;
+using BTL_Nhom18_CNPM.Model;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
