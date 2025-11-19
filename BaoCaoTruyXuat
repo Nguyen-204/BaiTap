@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 
 
-namespace BTL_Nhom7_CNPM.Model
+namespace BTL_Nhom18_CNPM.Model
 {
     public class BaoCaoTruyXuatLo
     {
